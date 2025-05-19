@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <button @click="toggleLeftColumn" class="toggle-button">弹出</button>
-    <div v-if="showLeftColumn" class="overlay" @click="toggleLeftColumn"></div>
+    <div v-if="leftColumnOpen" class="overlay" @click="toggleLeftColumn"></div>
     <div class="left-column" :class="{ 'open': leftColumnOpen }">
       <h1>MeowTask</h1>
       <div class="form-group">
@@ -42,7 +42,9 @@
           <!-- v-for="task in filteredTasks"  -->
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed,onMounted ,onBeforeUnmount  } from 'vue';
+import axios from 'axios';
+const tasks = ref([]); //这是从后端读取的，对接的话要打开
 const newTask = ref('');
 import TaskItem from './components/TaskItem.vue';
 const newTaskTime = ref('');
@@ -50,21 +52,81 @@ const newTaskTag = ref('');
 const newTaskPoints = ref(2);
 
 // 任务数据
-const tasks = ref([
-  { id: 1, content: '完成智能计算系统大作业', date: '2025/05/06', completed: false },
-  { id: 2, content: '慢跑30分钟', date: '2025/05/06', completed: false },
-  { id: 3, content: '阅读30分钟', date: '2025/05/07', completed: false },
-  { id: 4, content: '购买猫粮', date: '2025/05/08', completed: false },
-]);
+// const tasks = ref([
+//   { id: 1, content: '完成智能计算系统大作业', date: '2025/05/06', completed: false },
+//   { id: 2, content: '慢跑30分钟', date: '2025/05/06', completed: false },
+//   { id: 3, content: '阅读30分钟', date: '2025/05/07', completed: false },
+//   { id: 4, content: '购买猫粮', date: '2025/05/08', completed: false },
+// ]);
+//从后端读取,这个是读一次的，可以先试试这个是不是可以的
+// const fetchTasks = async () => {
+//   try {
+//     const response = await axios.get('/api/tasks')
+//     tasks.value = response.data
+//   } catch (error) {
+//     console.error('获取任务列表失败:', error)
+//   }
+// }
+// onMounted(() => {
+//   fetchTasks()
+// })
+
+//下面是socket对接的，已经试过，效果良好。可以读取
+let socket = null
+
+onMounted(() => {
+  // 建立 WebSocket 连接
+  socket = new WebSocket('ws://localhost:8080/ws')
+
+  // 连接建立成功
+  socket.onopen = () => {
+    console.log('WebSocket 已连接')
+  }
+
+  // 接收到后端推送的数据
+  socket.onmessage = (event) => {
+    const newTaskList = JSON.parse(event.data)
+    tasks.value = newTaskList
+  }
+
+  // 连接关闭
+  socket.onclose = () => {
+    console.log('WebSocket 已关闭')
+  }
+
+  // 出错
+  socket.onerror = (error) => {
+    console.error('WebSocket 错误:', error)
+  }
+})
+
+// 页面卸载前关闭 WebSocket
+onBeforeUnmount(() => {
+  if (socket) {
+    socket.close()
+  }
+})
+
+// let nextTaskId = ref(5);
 const addTask = () => {
   if (newTask.value.trim()) {
     tasks.value.push({
+      id: Date.now(), // 前端先临时生成个 id
       content: newTask.value.trim(),
       date: newTaskTime.value,
       // tag: newTaskTag.value,
       // points: parseInt(newTaskPoints.value) || 2,
       completed: false
     });
+      // 发送给后端
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        action: 'create_task',
+        data: newTask
+      }))
+    } else {
+      console.error('WebSocket 未连接')
+    }
     newTask.value = '';
     newTaskTime.value = '';
     newTaskTag.value = '';
@@ -76,13 +138,31 @@ const filteredTasks = computed(() =>
   tasks.value.filter(task => !task.completed)
 );
 
+// // 处理任务完成
+// const handleTaskComplete = (taskId) => {
+//   const taskIndex = tasks.value.findIndex(task => task.id === taskId);
+//   if (taskIndex !== -1) {
+//     tasks.value[taskIndex].completed = true;
+//   }
+// };
 // 处理任务完成
 const handleTaskComplete = (taskId) => {
-  const taskIndex = tasks.value.findIndex(task => task.id === taskId);
+  const taskIndex = tasks.value.findIndex(task => task.id === taskId)
   if (taskIndex !== -1) {
-    tasks.value[taskIndex].completed = true;
+    // 本地更新状态
+    tasks.value[taskIndex].completed = true
+
+    // 推送给后端
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({
+        action: 'complete_task',
+        data: { id: taskId }
+      }))
+    } else {
+      console.error('WebSocket 未连接')
+    }
   }
-};
+}
 
 const leftColumnOpen = ref(false);
 

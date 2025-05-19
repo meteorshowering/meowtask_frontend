@@ -1,52 +1,52 @@
 <template>
-  <div class="task-item">
+  <li class="task-item" @click="handleClick">
     <img 
       src="@/assets/xian.png" 
       alt="毛线" 
       class="button" 
-      @click="completeTask"
+      @click.stop="completeTask"
     >
     {{ task.content }}
     <span class="date">{{ task.date }}</span>
-  </div>
+  </li>
 </template>
 
 <script setup>
-const props = defineProps({ task: { type: Object, required: true } });
+import { defineProps, defineEmits } from 'vue';
 
-const emit = defineEmits(['complete']);
+const props = defineProps({
+  task: {
+    type: Object,
+    required: true
+  }
+});
+
+const emit = defineEmits(['click', 'complete']);
+
+const handleClick = () => {
+  emit('click');
+};
 
 const completeTask = () => {
-  // emit('complete', props.task.id);
   props.task.completed = true;
   emit('complete', props.task.id);
 };
-
-// const completeTask = (index) => {
-//   tasks.value[index].completed = !tasks.value[index].completed;
-// };
-// const totalPoints = computed(() => {
-//   return tasks.value.filter(task => task.completed).reduce((sum, task) => sum + task.points, 0);
-// });
-
 </script>
 
 <style scoped>
 .task-item {
   display: flex;
   align-items: center;
+  padding: 12px;
   margin-bottom: 10px;
-  padding: 10px;
+  background-color: #f9f9f9;
   border-radius: 4px;
-  background-color: #bbbbbb;
-  color: #000000;
-  transition: all 0.3s ease;
-  width: 100%;
-  box-sizing: border-box;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .task-item:hover {
-  background-color: #C8CFE9;
+  background-color: #f0f0f0;
   transform: translateX(5px);
 }
 
@@ -67,5 +67,4 @@ const completeTask = () => {
   color: #888;
   font-size: 14px;
 }
-
 </style>
